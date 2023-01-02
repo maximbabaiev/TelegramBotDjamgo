@@ -6,3 +6,4 @@ from first.models import *
 admin.site.register(Categorie)
 admin.site.register(ProductModel)
 admin.site.register(Order)
+admin.site.register(User)

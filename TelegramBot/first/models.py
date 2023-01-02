@@ -4,6 +4,14 @@ from django.db import models
 # Create your models here.
 
 
+class User(models.Model):
+    login = models.CharField(max_length=100)
+    password = models.CharField(max_length=100)
+
+    def __str__(self):
+        return f"{self.login} {self.password}"
+
+
 class Categorie(models.Model):
     name_categories = models.CharField(max_length=100, unique=True)
 
@@ -16,7 +24,6 @@ class ProductModel(models.Model):
     nameCategories = models.ForeignKey(Categorie, on_delete=models.SET_NULL, null=True)
     value = models.PositiveIntegerField()
     price = models.DecimalField(max_digits=10, decimal_places=2)
-
 
     def __str__(self):
         return f"{self.nameProd}"
