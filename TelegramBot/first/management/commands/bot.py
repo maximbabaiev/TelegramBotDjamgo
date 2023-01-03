@@ -18,9 +18,15 @@ keyboard_start.add(types.KeyboardButton("registration".title()),
 keyboard_cancel = types.ReplyKeyboardMarkup()
 keyboard_cancel.add(types.KeyboardButton("Назад"))
 
-keyboard_pay = types.ReplyKeyboardMarkup()
-keyboard_pay.add(types.KeyboardButton("Оплатить"),
-                 types.KeyboardButton("Меню"))
+keyboard_menu = types.ReplyKeyboardMarkup()
+keyboard_menu.add(types.KeyboardButton("Меню"))
+
+keyboard_basket = types.ReplyKeyboardMarkup()
+keyboard_basket.add(types.KeyboardButton("Корзина"))
+
+inlines = types.InlineKeyboardMarkup()
+inlines.add(types.InlineKeyboardButton(text="Купить", callback_data="buy"),
+            types.InlineKeyboardButton(text="Очистить корзину", callback_data="clear"))
 
 
 # keyboard_inlines = types.InlineKeyboardMarkup()
@@ -31,7 +37,9 @@ keyboard_pay.add(types.KeyboardButton("Оплатить"),
 @max_diary.message_handler(commands=["start"])
 def start(message):
     max_diary.send_message(message.chat.id,
-                           "Какая категория вас интересует?",
+                           f"Добро пожаловать,  {message.from_user.first_name}!\nПожалуйста пройдите регистрацию"
+                           f" если вы не зарегестрированный пользователь\n"
+                           f"или авторезируйтесь если вы есть в системе !",
                            reply_markup=keyboard_start)
 
 
@@ -39,27 +47,29 @@ def start(message):
 def get_text(message):
     if message.text.lower() == "registration":
         max_diary.register_next_step_handler(
-            max_diary.send_message(message.chat.id, "Введите логин, пароль, имя, фамилию"),
+            max_diary.send_message(message.chat.id, "Введите логин и пароль через пробел"),
             registration)
     elif message.text.lower() == "authorization":
         max_diary.register_next_step_handler(
             max_diary.send_message(message.chat.id, "Введите логин и пароль через пробел"), login)
-    elif message.text == "Корзина":
-        all_cart_user = Order.objects.filter(idUser=1)
-        all_cart = [f"Ваша корзина:\n\n"]
-        for i in range(len(all_cart_user)):
-            all_cart.append(
-                f"{i + 1}. {all_cart_user[i].nameProd} -> {all_cart_user[i].value}шт. = {all_cart_user[i].price}$\n")
-        max_diary.send_message(message.chat.id, "".join(all_cart), reply_markup=keyboard_pay)
     elif message.text == "Меню":
         max_diary.send_message(message.chat.id,
                                "Какая категория вас интересует?",
                                reply_markup=keyboard_categories)
+    elif message.text == "Корзина":
+        all_cart_user = Order.objects.filter(idUser=message.chat.id)
+        all_cart = [f"Ваша корзина:\n\n"]
+        for i in range(len(all_cart_user)):
+            all_cart.append(
+                f"{i + 1}. {all_cart_user[i].nameProd} -> {all_cart_user[i].value}шт. = {all_cart_user[i].price}$\n")
+        max_diary.send_message(message.chat.id, "".join(all_cart), reply_markup=inlines)
+
     else:
         keyboard_all_prod_categories = types.InlineKeyboardMarkup()
         all_product_of_categ = ProductModel.objects.filter(nameCategories__name_categories=message.text)
         for j in all_product_of_categ:
-            if j.value >= 1:
+            if j.value > 0:
+                print("1")
                 keyboard_all_prod_categories.add(
                     types.InlineKeyboardButton(text=f"{j.nameProd} - {j.price}$", callback_data=j.nameProd))
             max_diary.send_message(message.chat.id, f"Товары категории \"{message.text}\"",
@@ -73,15 +83,25 @@ def callback_data(call):
     if call.message:
         max_diary.register_next_step_handler(
             max_diary.send_message(call.message.chat.id,
-                                   f"Товар \"{call.data}\" добавлен в корзину в количестве 1 шт."
+                                   f"Товар \"{call.data}\" выбран."
                                    f"\n\nВведите количество товара: ",
                                    reply_markup=keyboard_cancel), add_product_cart)
+    if call.data == "buy":
+        max_diary.send_message(call.message.chat.id,
+                               "Вот ссылка где вы можете купить этот товар:\nhttps://rozetka.com.ua/",
+                               reply_markup=keyboard_menu)
+    elif call.data == "clear":
+        Order.objects.filter(idUser=call.message.chat.id).delete()
+        max_diary.send_message(call.message.chat.id, "Коризна очищена", reply_markup=keyboard_menu)
+
+
 
 
 def add_product_cart(message):
     if message.text == "Назад":
         Order.objects.filter(idUser=message.chat.id, nameProd=name_product, value=0, price=0).delete()
         max_diary.send_message(message.chat.id, "Какая категория вас интересует?", reply_markup=keyboard_categories)
+
     else:
         if message.text.isdigit():
             if int(message.text) >= 1:
@@ -98,14 +118,15 @@ def add_product_cart(message):
                                                second=int(time_var[2])),
                     value=int(message.text),
                     price=float(int(message.text) * float(price_prod_var)))
-                max_diary.send_message(message.chat.id, f"Добавлено в корзину в количестве {message.text} шт.")
+                max_diary.send_message(message.chat.id, f"Добавлено в корзину в количестве {message.text} шт.",
+                                       reply_markup=keyboard_basket)
             else:
                 max_diary.register_next_step_handler(
                     max_diary.send_message(message.chat.id, "Введите положительное число!"),
                     add_product_cart)
-        else:
-            max_diary.register_next_step_handler(max_diary.send_message(message.chat.id, "Введите только число"),
-                                                 add_product_cart)
+        # else:
+        #     max_diary.register_next_step_handler(max_diary.send_message(message.chat.id, "Введите только число"),
+        #                                          add_product_cart)
 
 
 # @max_diary.callback_query_handler(func=lambda call: call.data in ["add", "see"])
@@ -143,7 +164,8 @@ def login(message):
         return
 
     # Авторизуем пользователя
-    max_diary.send_message(message.chat.id, f'Пользователь {login} успешно авторизован!', reply_markup=keyboard_pay)
+    max_diary.send_message(message.chat.id, f'Пользователь {login} успешно авторизован!',
+                           reply_markup=keyboard_menu)
 
 
 #
